@@ -1,0 +1,40 @@
+targets:
+  main:
+    resources:
+      RemotePlace:
+        name: k3-pico-itx-0
+    drivers:
+      - SerialDriver:
+          name: 'k3-pico-itx-console-1'
+          bindings:
+            port: 'k3-pico-itx-serial-port-1'
+      - SiSPMPowerDriver:
+          name: 'k3-pico-itx-power-1'
+          # SiSPMPowerDriver default delay is 2s; the K3's stmmac DMA requires 12s to drain
+          # capacitors on power cycle or the DMA controller gets stuck (see bringup notes §9).
+          delay: 12.0
+          bindings:
+            port: 'k3-pico-itx-power-1'
+      - TFTPProviderDriver:
+          name: 'k3-pico-itx-tftp-1'
+          bindings:
+            provider: 'k3-pico-itx-tftp-1'
+      - ShellDriver:
+          prompt: '(\x1b\[\?2004h)?ubuntu@[\w-]+:[^ ]+[$#] '
+          login_prompt: '[-\w]+ login: '
+          username: 'ubuntu'
+          password: 'ubuntu'
+          name: 'k3-pico-itx-shell-1'
+          login_timeout: 120
+          bindings:
+            console: 'k3-pico-itx-console-1'
+      - K3PicoITXBootStrategy:
+          name: 'k3-pico-itx-strategy-1'
+          bindings:
+            power: 'k3-pico-itx-power-1'
+            console: 'k3-pico-itx-console-1'
+            shell: 'k3-pico-itx-shell-1'
+            tftp: 'k3-pico-itx-tftp-1'
+
+imports:
+  - strategy.py

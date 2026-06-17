@@ -1,0 +1,17 @@
+k3-pico-itx-0:
+  location: pi
+  k3-pico-itx-serial-port-1:
+    cls: 'USBSerialPort'
+    match:
+      '@ID_PATH': 'platform-3f980000.usb-usb-0:1.1.3.3:1.0'
+  k3-pico-itx-power-1:
+    cls: 'SiSPMPowerPort'
+    match:
+      'ID_VENDOR_ID': '04b4'
+      'ID_MODEL_ID': 'fd15'
+    index: 1                                   # outlet 1 (1-based, matches sispmctl -o 1)
+  k3-pico-itx-tftp-1:
+    cls: 'RemoteTFTPProvider'
+    host: '192.168.254.17'
+    internal: '/home/ubuntu/git/k3-host/tftp-root/k3-pico-itx/'
+    external: 'k3-pico-itx/'

@@ -1,0 +1,19 @@
+[Unit]
+Description=Labgrid Pi-0 Exporter
+After=labgrid-coordinator.service
+Requires=labgrid-coordinator.service
+Wants=network-online.target
+
+[Service]
+Environment="PYTHONUNBUFFERED=1"
+Environment="LG_COORDINATOR=localhost:20408"
+ExecStart=/home/ubuntu/git/k3-host/.venv/bin/labgrid-exporter \
+  -n pi-0-exporter \
+  /home/ubuntu/git/k3-host/boards/k3-pico-itx/exporter.yaml
+Restart=always
+RestartSec=10
+User=ubuntu
+SupplementaryGroups=dialout sispmctl
+
+[Install]
+WantedBy=multi-user.target
