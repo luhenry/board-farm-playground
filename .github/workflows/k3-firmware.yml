@@ -1,0 +1,102 @@
+name: K3 EDK II Firmware
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash --noprofile --norc -ex -o pipefail {0}
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out k3-host repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Clone edk2
+        id: clone-edk2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          repository: spacemit-com/edk2
+          ref: k3
+          submodules: recursive
+          path: edk2
+
+      - name: Clone edk2-platforms
+        id: clone-edk2-platforms
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          repository: spacemit-com/edk2-platforms
+          ref: k3
+          submodules: recursive
+          path: edk2-platforms
+
+      - name: Resolve upstream SHAs
+        id: shas
+        run: |
+          EDK2_SHA="${{ steps.clone-edk2.outputs.commit }}"
+          PLATFORMS_SHA="${{ steps.clone-edk2-platforms.outputs.commit }}"
+          echo "edk2=${EDK2_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "platforms=${PLATFORMS_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "tag=firmware-${EDK2_SHA:0:7}-${PLATFORMS_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        run: |
+          if gh release view "${{ steps.shas.outputs.tag }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            binutils-riscv64-linux-gnu \
+            device-tree-compiler \
+            g++ \
+            gcc \
+            gcc-riscv64-linux-gnu \
+            iasl \
+            make \
+            nasm \
+            python3 \
+            u-boot-tools \
+            uuid-dev
+
+      - name: Build firmware
+        if: steps.check.outputs.exists == 'false'
+        working-directory: edk2
+        env:
+          GCC5_RISCV64_PREFIX: riscv64-linux-gnu-
+          PYTHON_COMMAND: python3
+          WORKSPACE: ${{ github.workspace }}
+          PACKAGES_PATH: ${{ github.workspace }}/edk2:${{ github.workspace }}/edk2-platforms
+        run: |
+          source edksetup.sh
+          make -C BaseTools
+          build -a RISCV64 \
+                -p Platform/Spacemit/K3/MUSE-Pico/MUSE-Pico.dsc \
+                -t GCC5 \
+                -b RELEASE \
+                -D NETWORK_PXE_BOOT_ENABLE=FALSE \
+                -D NETWORK_HTTP_BOOT_ENABLE=FALSE \
+                -D DEBUG_ON_SERIAL_PORT=FALSE \
+                -D CAPSULE_ENABLE=FALSE
+
+      - name: Publish release
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.shas.outputs.tag }}" \
+            --title "K3 EDK II firmware ${{ steps.shas.outputs.tag }}" \
+            --notes "edk2: spacemit-com/edk2@${{ steps.shas.outputs.edk2 }} edk2-platforms: spacemit-com/edk2-platforms@${{ steps.shas.outputs.platforms }}" \
+            fitimage/MUSE-Pico/MUSE-Pico.itb#edk2.itb
